@@ -1,0 +1,6 @@
+logs/*
+dataset/*
+out/*
+phantom/val/*
+phantom/train*
+__pycache__/
