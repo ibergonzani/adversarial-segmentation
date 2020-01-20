@@ -30,15 +30,17 @@ def load_brain_dataset():
 	H = list()
 	for image_name in os.listdir(splitted_healthy_path):
 		image_path = os.path.join(splitted_healthy_path, image_name)
-		image = cv2.imread(image_path)
+		image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+		image = image[..., np.newaxis]
 		H.append(image)
 		
 	T = list()
 	for image_name in os.listdir(splitted_tumor_path):
 		image_path = os.path.join(splitted_tumor_path, image_name)
-		image = cv2.imread(image_path)
+		image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 		if image is None:
 			continue
+		image = image[..., np.newaxis]
 		T.append(image)
 		
 	return np.array(H), np.array(T)
