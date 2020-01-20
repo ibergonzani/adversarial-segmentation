@@ -27,7 +27,7 @@ AE_LR_DECAY = 2.0
 
 
 
-# loading and standardize data
+# loading and normalize data
 x_train, y_train = load_data(TRAINING_FOLDER) 
 x_test,  y_test  = load_data(VALIDATION_FOLDER)
 
@@ -154,7 +154,13 @@ saver = tf.train.Saver()
 NUM_BATCHES_TRAIN = math.ceil(x_train.shape[0] / BATCH_SIZE)
 NUM_BATCHES_TEST  = math.ceil(x_test.shape[0]  / BATCH_SIZE)
 
-with tf.Session() as sess:
+
+# dynamic memory allocation
+configuration = tf.ConfigProto()
+configuration.gpu_options.allow_growth = True
+configuration.log_device_placement = False
+
+with tf.Session(config=configuration) as sess:
 
 	# tensorboard summary writer
 	train_writer = tf.summary.FileWriter(TRAIN_LOG_FOLDER, sess.graph)

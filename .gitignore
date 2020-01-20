@@ -1,6 +1,8 @@
 logs/*
 dataset/*
 out/*
+out*/*
+models*/*
 phantom/val/*
 phantom/train*
 __pycache__/
