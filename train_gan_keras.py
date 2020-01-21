@@ -3,6 +3,10 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 import tensorflow as tf
 
+gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+for device in gpu_devices:
+    tf.config.experimental.set_memory_growth(device, True)
+
 import progressbar as pb
 import numpy as np
 import networks_keras
@@ -30,16 +34,17 @@ VALIDATION_FOLDER = DATASET_FOLDER + 'val/'
 TRAIN_LOG_FOLDER = 'logs/train_' + str(timestamp)
 TEST_LOG_FOLDER  = 'logs/test_' + str(timestamp)
 
-EPOCHS = 4
-STEPSIZE = 1e-4
-BATCH_SIZE = 1
+EPOCHS = 50
+STEPSIZE_DISCRIMINATOR = 4e-4
+STEPSIZE_GENERATOR = 1e-4
+BATCH_SIZE = 4
 LR_DECAY = 1.0
 AE_LR_DECAY = 2.0
 
 
 
 # loading and standardize data
-# x_train_healthy, x_train_disease = load_dataset_separated(TRAINING_FOLDER) 
+# x_train_healthy, x_train_disease = load_dataset_separated(TRAINING_FOLDER)
 # x_test_healthy,  x_test_disease  = load_dataset_separated(VALIDATION_FOLDER)
 
 # x_train_healthy, x_train_disease = load_stare_dataset_separated()
@@ -60,7 +65,7 @@ np.random.shuffle(Xh)
 np.random.shuffle(Xu)
 
 # take same number of positive and negative examples
-min_size = 1000 #min(Xh.shape[0], Xu.shape[0])
+min_size = min(Xh.shape[0], Xu.shape[0])
 Xh = Xh[:min_size, ...]
 Xu = Xu[:min_size, ...]
 
@@ -96,31 +101,31 @@ discriminator = networks_keras.discriminator_net(input_shape)
 
 
 ########################## OPTIMIZERS ####################################
-generator_optimizer = tf.keras.optimizers.Adam(STEPSIZE)
-discriminator_optimizer = tf.keras.optimizers.Adam(STEPSIZE)
+generator_optimizer = tf.keras.optimizers.Adam(STEPSIZE_GENERATOR)
+discriminator_optimizer = tf.keras.optimizers.Adam(STEPSIZE_DISCRIMINATOR)
 
 
 ########################## LOSSES ################################
 def discriminator_loss(healthy_output, tumor_output):
-    healthy_loss = tf.keras.losses.MSE(tf.ones_like(healthy_output), healthy_output)
+    healthy_loss = tf.keras.losses.MSE(0.9 * tf.ones_like(healthy_output), healthy_output)
     tumor_loss = tf.keras.losses.MSE(tf.zeros_like(tumor_output), tumor_output)
     total_loss = tf.reduce_mean(healthy_loss) + tf.reduce_mean(tumor_loss)
     return total_loss
-	
+
 def discriminator_accuracy(healthy_output, tumor_output):
-	
+
 	healthy_truth = tf.ones_like(healthy_output).numpy()
 	healthy_output = healthy_output.numpy() > 0.5
 	tumor_truth = tf.zeros_like(tumor_output).numpy()
 	tumor_output = tumor_output.numpy() > 0.5
-	
+
 	h_acc = accuracy_score(healthy_truth, healthy_output)
 	t_acc = accuracy_score(tumor_truth, tumor_output)
-	
+
 	total_acc = (h_acc + t_acc) / 2
-	
+
 	return total_acc
-	
+
 
 def generator_loss_classification(tumor_images_classification):
     return tf.reduce_mean(tf.keras.losses.MSE(tf.ones_like(tumor_images_classification), tumor_images_classification))
@@ -132,32 +137,40 @@ def generator_loss_similarity(input_images, generated_images):
 
 ########################## TRAINING OPTIMIZATION STEPS ################################
 def train_step(healthy_images, tumor_images):
-	
-	with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-		generated_images = generator(tumor_images, training=True)
 
-		h_class = discriminator(healthy_images, training=True)
-		t_class = discriminator(generated_images, training=True)
+    with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+        noise_tumor = tf.random.normal(tumor_images.shape, mean=0, stddev=0.001, dtype=tf.dtypes.float64)
+        noise_healthy = tf.random.normal(healthy_images.shape, mean=0, stddev=0.001, dtype=tf.dtypes.float64)
+        noise_generated = tf.random.normal(tumor_images.shape, mean=0, stddev=0.001, dtype=tf.dtypes.float32)
 
-		gen_loss_c = generator_loss_classification(t_class)
-		gen_loss_s = generator_loss_similarity(tumor_images, generated_images)
-		gen_loss   = gen_loss_c + gen_loss_s
+        generated_images = generator(tumor_images + noise_tumor, training=True)
+        generated_images = generated_images + noise_generated
 
-		disc_loss = discriminator_loss(h_class, t_class)
-		disc_acc  = discriminator_accuracy(h_class, t_class)
+        healthy_images = healthy_images + noise_healthy
 
-	gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
-	gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
+        h_class = discriminator(healthy_images, training=True)
+        t_class = discriminator(generated_images, training=True)
 
-	generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
-	discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
+        gen_loss_c = generator_loss_classification(t_class)
+        gen_loss_s = generator_loss_similarity(tumor_images, generated_images)
+        gen_loss   = gen_loss_c + gen_loss_s
 
-	return gen_loss, disc_loss, disc_acc
-	
+        disc_loss = discriminator_loss(h_class, t_class)
+        disc_acc  = discriminator_accuracy(h_class, t_class)
+
+        gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
+        gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
+
+        generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
+        discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
+
+        return gen_loss, disc_loss, disc_acc
+    return 0
+
 
 ########################## EVALUATION STEP ################################
 def eval_step(tumor_images):
-	
+
 	generated_images = generator(tumor_images, training=False)
 
 	real_output = discriminator(healthy_images, training=False)
@@ -180,92 +193,92 @@ NUM_BATCHES_TEST  = math.ceil(x_test_healthy.shape[0]  / BATCH_SIZE)
 
 
 for epoch in range(EPOCHS):
-	
+
 	print("\nEPOCH %d/%d" % (epoch+1, EPOCHS))
-	
+
 	# exponential learning rate decay
 	# if (epoch + 1) % 10 == 0:
 		# STEPSIZE /= 2.0,
 		# generator_optimizer = tf.keras.optimizers.Adam(STEPSIZE)
 		# discriminator_optimizer = tf.keras.optimizers.Adam(STEPSIZE)
-	
-	
+
+
 	#  initialize metrics and shuffles training datasets
 	loss_generator = 0
 	loss_discriminator = 0
 	acc_discriminator = 0
-	
+
 	progress_info = pb.ProgressBar(total=NUM_BATCHES_TRAIN, prefix=' train', show=True)
-	
+
 	# Training of the network
 	for nb, (healthy_images, disease_images) in enumerate(zip(xh_train_dataset, xu_train_dataset)):
 		ab = nb + 1
-		
+
 		gen_loss, disc_loss, disc_acc = train_step(healthy_images, disease_images)
-		
+
 		loss_generator += gen_loss.numpy().item()
 		loss_discriminator += disc_loss.numpy().item()
 		acc_discriminator += disc_acc.item()
-		
+
 		suffix = '  loss gen {:.4f}, loss discr {:.4f}, acc discr: {:.3f}'.format(loss_generator/ab, loss_discriminator/ab, acc_discriminator/ab)
 		progress_info.update_and_show( suffix = suffix )
 	print()
-	
-	
-	
+
+
+
 	# initialize the test dataset and set batch normalization inference
 	loss_generator = 0
 	loss_discriminator = 0
 	acc_discriminator = 0
-	
+
 	progress_info = pb.ProgressBar(total=NUM_BATCHES_TEST, prefix='  eval', show=True)
-	
+
 	# evaluation of the network
 	for nb, disease_batch in enumerate(xu_test_dataset):
 		ab = nb + 1
-		
+
 		generated_images, gen_loss, disc_loss, disc_acc = eval_step(disease_batch) # ins = disease images batch
-		
+
 		loss_generator += gen_loss.numpy().item()
 		loss_discriminator += disc_loss.numpy().item()
 		acc_discriminator += disc_acc.item()
-		
-					
+
+
 		if (epoch + 1) % 2 == 0:
 			ins = disease_batch.numpy()
 			out = generated_images.numpy()
-		
+
 			out_dir = os.path.join("out/", str(epoch+1))
 			if not os.path.exists(out_dir):
 				os.makedirs(out_dir)
-				
+
 			ins = (ins * xstd) + xmean
 			out = (out * xstd) + xmean
-		
+
 			for i in range(out.shape[0]):
 				ins_image = ins[i,:,:,:]
 				out_image = out[i,:,:,:]
-				
+
 				seg_image = np.max(np.abs(ins_image - out_image), axis=2, keepdims=True)
 				seg_image[seg_image >= 30] = 255
 				seg_image[seg_image <  30] = 0
-				
+
 				origi_name = "image_" + '{:04d}'.format(i + nb*BATCH_SIZE) + "o.png"
 				image_name = "image_" + '{:04d}'.format(i + nb*BATCH_SIZE) + "r.png"
 				segme_name = "image_" + '{:04d}'.format(i + nb*BATCH_SIZE) + "segm.png"
 				cv2.imwrite(os.path.join(out_dir, origi_name), ins_image)
 				cv2.imwrite(os.path.join(out_dir, image_name), out_image)
 				cv2.imwrite(os.path.join(out_dir, segme_name), seg_image)
-			
+
 			# saver.save(sess, os.path.join("models", 'model.ckpt'), global_step=epoch+1)
-		
+
 		suffix = '  loss gen {:.4f}, loss discr {:.4f}, acc discr: {:.3f}'.format(loss_generator/ab, loss_discriminator/ab, acc_discriminator/ab)
 		progress_info.update_and_show( suffix = suffix )
 	print()
-	
+
 	# summary  = sess.run(merged_summary)
 	# test_writer.add_summary(summary, epoch)
-	
+
 
 # train_writer.close()
 # test_writer.close()
