@@ -24,25 +24,37 @@ splitted_tumor_path = "dataset/brain_tumor_dataset_splitted/1"
 splitted_tumor_mask_path = "dataset/brain_tumor_dataset_splitted/mask"
 
 
+def resize(image, scale):
+	h = int(image.shape[0] * scale)
+	w = int(image.shape[1] * scale)
 
-def load_brain_dataset():
+	ns = list(image.shape)
+	ns[1] = h
+	ns[0] = w
+
+	return cv2.resize(image, tuple(ns))
+
+
+def load_brain_dataset(scale = 1):
 
 	H = list()
 	for image_name in os.listdir(splitted_healthy_path):
 		image_path = os.path.join(splitted_healthy_path, image_name)
 		image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+		image = resize(image, scale)
 		image = image[..., np.newaxis]
 		H.append(image)
-		
+
 	T = list()
 	for image_name in os.listdir(splitted_tumor_path):
 		image_path = os.path.join(splitted_tumor_path, image_name)
 		image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 		if image is None:
 			continue
+		image = resize(image, scale)
 		image = image[..., np.newaxis]
 		T.append(image)
-		
+
 	return np.array(H), np.array(T)
 
 
