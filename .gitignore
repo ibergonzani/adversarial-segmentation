@@ -7,3 +7,5 @@ models*/*
 phantom/val/*
 phantom/train*
 __pycache__/
+
+*.h5

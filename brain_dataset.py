@@ -110,9 +110,9 @@ if __name__ == "__main__":
         upper_has_tumor = False
         lower_has_tumor = False
 
-        if np.min(borders_y) < 250:
+        if np.min(borders_y) < 256:
             upper_has_tumor = True
-        if np.max(borders_y) >= 250:
+        if np.max(borders_y) >= 256:
             lower_has_tumor = True
 
         upper = image[:256,:]
