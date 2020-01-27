@@ -94,18 +94,16 @@ xu_test_dataset = tf.data.Dataset.from_tensor_slices(x_test_disease).batch(BATCH
 
 
 ########################## NETWORKS ####################################
-
+latent_space_size = 512
 # image autoencoder network initialization (start from images with disease)
-encoder, decoder = networks_keras.encoder_decoder_net(input_shape, 1024)
+encoder, decoder = networks_keras.encoder_decoder_net(input_shape, latent_space_size)
 discriminator = networks_keras.discriminator_net(input_shape)
-double_encoder, _ = networks_keras.encoder_decoder_net(input_shape, 1024)
+double_encoder, _ = networks_keras.encoder_decoder_net(input_shape, latent_space_size)
 
 
 ########################## OPTIMIZERS ####################################
-optimizer_autoencoder = tf.keras.optimizers.Adam(STEPSIZE_GENERATOR)
-optimizer_decoder = tf.keras.optimizers.Adam(STEPSIZE_GENERATOR)
+optimizer_generator = tf.keras.optimizers.Adam(STEPSIZE_GENERATOR)
 optimizer_discriminator = tf.keras.optimizers.Adam(STEPSIZE_DISCRIMINATOR)
-optimizer_d_enc = tf.keras.optimizers.Adam(STEPSIZE_GENERATOR)
 
 ########################## LOSSES ################################
 
@@ -140,7 +138,7 @@ def loss_double_encoder(latent_real, latent_gen):
 ########################## TRAINING OPTIMIZATION STEPS ################################
 def train_step(healthy_images, generator_phase):
 
-    with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape, tf.GradientTape() as dec_tape, tf.GradientTape() as ddenc_tape:
+    with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
 
         # adding noise
         noise_healthy = tf.random.normal(healthy_images.shape, mean=0, stddev=0.001, dtype=tf.dtypes.float64)
@@ -156,29 +154,28 @@ def train_step(healthy_images, generator_phase):
         latent_z = double_encoder(generated_images_h, training=True)
 
         # losses
-        loss_autoencoder = loss_generator_similarity(healthy_images, generated_images_h)
-        loss_decoder = 50 * loss_generator_classification(fake_classification)
+        loss_sim = loss_generator_similarity(healthy_images, generated_images_h)
+        loss_adv = loss_generator_classification(fake_classification)
+        loss_enc = loss_double_encoder(latent_h, latent_z)
+
+        loss_generator = 2 * loss_sim + loss_adv + loss_enc;
 
         loss_discriminator = loss_discriminator_classification(real_classification, fake_classification)
         acc_discriminator  = accuracy_discriminator_classification(real_classification, fake_classification)
 
-        loss_d_enc = loss_double_encoder(latent_h, latent_z)
-
     # computing gradients of losses wrt model parameters
-    gradients_of_decoder       = dec_tape.gradient(loss_decoder, decoder.trainable_variables)
-    gradients_of_autoencoder   = gen_tape.gradient(loss_autoencoder, encoder.trainable_variables + decoder.trainable_variables)
+    generator_vars = encoder.trainable_variables + decoder.trainable_variables + double_encoder.trainable_variables
+
+    gradients_of_generator   = gen_tape.gradient(loss_generator, generator_vars)
     gradients_of_discriminator = disc_tape.gradient(loss_discriminator, discriminator.trainable_variables)
-    gradients_of_d_enc         = ddenc_tape.gradient(loss_d_enc, encoder.trainable_variables + decoder.trainable_variables + double_encoder.trainable_variables)
 
     # applying gradient
     if generator_phase:
-        optimizer_decoder.apply_gradients(zip(gradients_of_decoder, decoder.trainable_variables))
-        optimizer_autoencoder.apply_gradients(zip(gradients_of_autoencoder, encoder.trainable_variables + decoder.trainable_variables))
-        optimizer_d_enc.apply_gradients(zip(gradients_of_d_enc, encoder.trainable_variables + decoder.trainable_variables + double_encoder.trainable_variables))
+        optimizer_generator.apply_gradients(zip(gradients_of_generator, generator_vars))
     else:
         optimizer_discriminator.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
-    return loss_autoencoder, loss_discriminator, acc_discriminator
+    return loss_generator, loss_discriminator, acc_discriminator
 
 
 
@@ -193,7 +190,7 @@ def eval_step(healthy_images):
 
     # losses
     loss_autoencoder = loss_generator_similarity(healthy_images, generated_images_h)
-    loss_decoder = 50 * loss_generator_classification(fake_classification)
+    loss_decoder = 25 * loss_generator_classification(fake_classification)
 
     loss_discriminator = loss_discriminator_classification(real_classification, fake_classification)
     acc_discriminator  = accuracy_discriminator_classification(real_classification, fake_classification)

@@ -161,47 +161,70 @@ def encoder_decoder_net(input_shape, latent_dim):
 	output_channels = input_shape[-1]
 
 	############################### ENCODER MODEL ######################################################
-	input_layer = Input(shape=input_shape, name="Input")
-	net = Conv2D(filters=40, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf1')(input_layer)
-	net = LeakyReLU()(net)
-	net = BatchNormalization()(net)
-	net = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool1')(net)
+	input_layer = Input(shape=input_shape)
 
-	net = Conv2D(filters=80, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf2')(net)
+	net = Conv2D(filters=40, kernel_size=3, strides=(1, 1), padding='same')(input_layer)
 	net = LeakyReLU()(net)
 	net = BatchNormalization()(net)
-	net = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool2a')(net)
+	net = MaxPool2D(pool_size=2, strides=(2, 2))(net)
 
-	net = Conv2D(filters=160, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf3')(net)
+	net = Conv2D(filters=80, kernel_size=3, strides=(1, 1), padding='same')(net)
 	net = LeakyReLU()(net)
 	net = BatchNormalization()(net)
-	net = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool2')(net)
+	net = MaxPool2D(pool_size=2, strides=(2, 2))(net)
+
+	net = Conv2D(filters=120, kernel_size=3, strides=(1, 1), padding='same')(net)
+	net = LeakyReLU()(net)
+	net = BatchNormalization()(net)
+	net = MaxPool2D(pool_size=2, strides=(2, 2))(net)
+
+	net = Conv2D(filters=160, kernel_size=3, strides=(1, 1), padding='same')(net)
+	net = LeakyReLU()(net)
+	net = BatchNormalization()(net)
+	net = MaxPool2D(pool_size=2, strides=(2, 2))(net)
+
+	net = Conv2D(filters=200, kernel_size=3, strides=(1, 1), padding='same')(net)
+	net = LeakyReLU()(net)
+	net = BatchNormalization()(net)
+	net = MaxPool2D(pool_size=2, strides=(2, 2))(net)
 
 	conv_shape = net.shape[-3:]
 	conv_units = functools.reduce(operator.mul, conv_shape, 1)
+	print("CONV_UNITS:", conv_units)
 
 	net = Flatten()(net)
+	net = Dense(conv_units / 2, activation=tf.nn.tanh)(net)
 	net = Dense(latent_dim, activation=tf.nn.tanh)(net)
 
 	encoder = Model(inputs=input_layer, outputs=net, name="encoder_net")
 
 	#################### DECODER MODEL #########################################3
-	input_layer = Input(shape=[latent_dim], name="Input")
-	net = Dense(conv_units, activation=tf.nn.tanh)(input_layer)
+	input_layer = Input(shape=[latent_dim])
+
+	net = Dense(conv_units / 2, activation=tf.nn.tanh)(input_layer)
+	net = Dense(conv_units, activation=tf.nn.tanh)(net)
 	net = Reshape(conv_shape)(net)
 
-	net = Conv2DTranspose(filters=160, kernel_size=3, padding='same', strides=(2, 2), name="deconv_1")(net)
+	net = Conv2DTranspose(filters=200, kernel_size=3, padding='same', strides=(2, 2))(net)
 	net = LeakyReLU()(net)
 	net = BatchNormalization()(net)
 
-	net = Conv2DTranspose(filters=80, kernel_size=3, padding='same', strides=(2, 2), name="deconv_2")(net)
+	net = Conv2DTranspose(filters=160, kernel_size=3, padding='same', strides=(2, 2))(net)
 	net = LeakyReLU()(net)
 	net = BatchNormalization()(net)
 
-	net = Conv2DTranspose(filters=40, kernel_size=3, padding='same', strides=(2, 2), name="deconv_3")(net)
+	net = Conv2DTranspose(filters=120, kernel_size=3, padding='same', strides=(2, 2))(net)
+	net = LeakyReLU()(net)
+	net = BatchNormalization()(net)
+
+	net = Conv2DTranspose(filters=80, kernel_size=3, padding='same', strides=(2, 2))(net)
+	net = LeakyReLU()(net)
+	net = BatchNormalization()(net)
+
+	net = Conv2DTranspose(filters=40, kernel_size=3, padding='same', strides=(2, 2))(net)
 	net = LeakyReLU()(net)
 
-	net = Conv2D(filters=output_channels, kernel_size=3, strides=(1, 1), padding='same', activation=tf.nn.tanh, name='conv9_f3')(net)
+	net = Conv2D(filters=output_channels, kernel_size=3, strides=(1, 1), padding='same', activation=tf.nn.tanh)(net)
 
 	decoder = Model(inputs=input_layer, outputs=net, name="decoder_net")
 
