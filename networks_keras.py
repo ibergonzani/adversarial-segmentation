@@ -92,64 +92,106 @@ def discriminator_net(input_shape):
 
 
 def generator_bipath_net(input_shape):
-
+	latent_dim = 1024
 	output_channels = input_shape[-1]
 
 	# branch  1 ( color reconstruction)
 	input_layer = Input(shape=input_shape, name="Input")
-	cv1 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv9_i')(input_layer)
+	cv1 = Conv2D(filters=16, kernel_size=3, strides=(2, 2), padding='same')(input_layer)
 	net = LeakyReLU()(cv1)
-	net = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv3a_1')(net)
+	net = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same')(net)
 	net = LeakyReLU()(net)
 	net = BatchNormalization()(net)
-	net = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv3b_1')(net)
+	net = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same')(net)
 	res1 = BatchNormalization()(net)
 
 	sum1  = Add()([cv1, res1])
 
-	net = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv3a_2')(sum1)
+	net = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same')(sum1)
 	net = LeakyReLU()(net)
 	net = BatchNormalization()(net)
-	net = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv3b_2')(net)
+	net = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same')(net)
 	res2 = BatchNormalization()(net)
 
 	sum2 = Add()([sum1, res2])
 
-	br1 = Conv2D(filters=output_channels, kernel_size=3, strides=(1, 1), padding='same', name='conv9_f')(sum2)
+	br1 = Conv2D(filters=output_channels, kernel_size=3, strides=(1, 1), padding='same')(sum2)
 
 
 	# branch 2 (features extraction)
-	br2 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf1')(input_layer)
+	br2 = Conv2D(filters=40, kernel_size=5, strides=(1, 1), padding='same')(input_layer)
 	br2 = LeakyReLU()(br2)
 	br2 = BatchNormalization()(br2)
-	br2 = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool1')(br2)
-	br2 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf2')(br2)
-	br2 = LeakyReLU()(br2)
-	br2 = BatchNormalization()(br2)
-	br2 = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool2a')(br2)
-	br2 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf3')(br2)
-	br2 = LeakyReLU()(br2)
-	br2 = BatchNormalization()(br2)
-	br2 = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool2')(br2)
+	br2 = MaxPool2D(pool_size=2, strides=(2, 2))(br2)
 
-	br2 = Conv2DTranspose(filters=16, kernel_size=3, padding='same', strides=(2, 2), name="deconv_1")(br2)
+	br2 = Conv2D(filters=80, kernel_size=3, strides=(1, 1), padding='same')(br2)
 	br2 = LeakyReLU()(br2)
 	br2 = BatchNormalization()(br2)
-	br2 = Conv2DTranspose(filters=16, kernel_size=3, padding='same', strides=(2, 2), name="deconv_2")(br2)
+	br2 = MaxPool2D(pool_size=2, strides=(2, 2))(br2)
+
+	br2 = Conv2D(filters=120, kernel_size=3, strides=(1, 1), padding='same')(br2)
 	br2 = LeakyReLU()(br2)
 	br2 = BatchNormalization()(br2)
-	br2 = Conv2DTranspose(filters=16, kernel_size=3, padding='same', strides=(2, 2), name="deconv_3")(br2)
+	br2 = MaxPool2D(pool_size=2, strides=(2, 2))(br2)
+
+	# conv_shape = br2.shape[-3:]
+	# conv_units = functools.reduce(operator.mul, conv_shape, 1)
+	#
+	# br2 = Flatten()(br2)
+	# br2 = Dense(conv_units / 2, activation=tf.nn.tanh)(br2)
+	# br2 = Dense(latent_dim, activation=tf.nn.tanh)(br2)
+	#
+	# br2 = Dense(conv_units / 2, activation=tf.nn.tanh)(input_layer)
+	# br2 = Dense(conv_units, activation=tf.nn.tanh)(br2)
+	# br2 = Reshape(conv_shape)(br2)
+
+	br2 = Conv2DTranspose(filters=120, kernel_size=3, padding='same', strides=(2, 2))(br2)
 	br2 = LeakyReLU()(br2)
 	br2 = BatchNormalization()(br2)
+
+	br2 = Conv2DTranspose(filters=80, kernel_size=3, padding='same', strides=(2, 2))(br2)
+	br2 = LeakyReLU()(br2)
+	br2 = BatchNormalization()(br2)
+
+	# br2 = Conv2DTranspose(filters=40, kernel_size=5, padding='same', strides=(2, 2))(br2)
+	# br2 = LeakyReLU()(br2)
+	# br2 = BatchNormalization()(br2)
+
+
+	# br2 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf1')(input_layer)
+	# br2 = LeakyReLU()(br2)
+	# br2 = BatchNormalization()(br2)
+	# br2 = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool1')(br2)
+	# br2 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf2')(br2)
+	# br2 = LeakyReLU()(br2)
+	# br2 = BatchNormalization()(br2)
+	# br2 = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool2a')(br2)
+	# br2 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf3')(br2)
+	# br2 = LeakyReLU()(br2)
+	# br2 = BatchNormalization()(br2)
+	# br2 = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool2')(br2)
+	#
+	# br2 = Conv2DTranspose(filters=16, kernel_size=3, padding='same', strides=(2, 2), name="deconv_1")(br2)
+	# br2 = LeakyReLU()(br2)
+	# br2 = BatchNormalization()(br2)
+	# br2 = Conv2DTranspose(filters=16, kernel_size=3, padding='same', strides=(2, 2), name="deconv_2")(br2)
+	# br2 = LeakyReLU()(br2)
+	# br2 = BatchNormalization()(br2)
+	# br2 = Conv2DTranspose(filters=16, kernel_size=3, padding='same', strides=(2, 2), name="deconv_3")(br2)
+	# br2 = LeakyReLU()(br2)
+	# br2 = BatchNormalization()(br2)
 
 	# concatenate branches and reconstruct image
 	net = Concatenate(axis=3)([br1, br2])
-	net = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv9_f1')(net)
+	net = Conv2D(filters=32, kernel_size=3, strides=(1, 1), padding='same')(net)
 	net = LeakyReLU()(net)
-	net = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv9_f2')(net)
+	net = Conv2DTranspose(filters=16, kernel_size=3, padding='same', strides=(2, 2))(net)
+	net = LeakyReLU()(net)
+	net = BatchNormalization()(net)
+	net = Conv2D(filters=32, kernel_size=3, strides=(1, 1), padding='same')(net)
 	net = LeakyReLU()(net)
 
-	output_layer = Conv2D(filters=output_channels, kernel_size=3, strides=(1, 1), padding='same', name='conv9_f3')(net)
+	output_layer = Conv2D(filters=output_channels, kernel_size=3, strides=(1, 1), activation=tf.nn.tanh, padding='same')(net)
 
 	return Model(inputs=input_layer, outputs=output_layer, name="generator_model")
 
@@ -237,41 +279,6 @@ def encoder_decoder_net(input_shape, latent_dim):
 def autoencoder_net(input_shape):
 
 	output_channels = input_shape[-1]
-
-	# input_layer = Input(shape=input_shape, name="Input")
-	# br2 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf1')(input_layer)
-	# br2 = LeakyReLU()(br2)
-	# br2 = BatchNormalization()(br2)
-	# br2 = Conv2D(filters=16, kernel_size=3, strides=(2, 2), padding='valid', name='pool1')(br2)
-	#
-	# br2 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf2')(br2)
-	# br2 = LeakyReLU()(br2)
-	# br2 = BatchNormalization()(br2)
-	# br2 = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool2a')(br2)
-	#
-	# br2 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf3')(br2)
-	# br2 = LeakyReLU()(br2)
-	# br2 = BatchNormalization()(br2)
-	# br2 = MaxPool2D(pool_size=2, strides=(2, 2), name='maxpool2')(br2)
-	#
-	# shape = br2.shape[-3:]
-	# units = functools.reduce(operator.mul, shape, 1)
-	#
-	# br2 = Flatten()(br2)
-	# br2 = Dense(1024)(br2)
-	# br2 = LeakyReLU()(br2)
-	# br2 = Dense(units)(br2)
-	# br2 = LeakyReLU()(br2)
-	# br2 = Reshape(shape)(br2)
-	#
-	# br2 = Conv2DTranspose(filters=16, kernel_size=3, padding='same', strides=(2, 2), name="deconv_1")(br2)
-	# br2 = LeakyReLU()(br2)
-	# br2 = BatchNormalization()(br2)
-	# br2 = Conv2DTranspose(filters=16, kernel_size=3, padding='same', strides=(2, 2), name="deconv_2")(br2)
-	# br2 = LeakyReLU()(br2)
-	# br2 = BatchNormalization()(br2)
-	# br2 = Conv2DTranspose(filters=16, kernel_size=3, padding='same', strides=(2, 2), name="deconv_3")(br2)
-	# br2 = LeakyReLU()(br2)
 
 	input_layer = Input(shape=input_shape, name="Input")
 	br2 = Conv2D(filters=16, kernel_size=3, strides=(1, 1), padding='same', name='conv_bf1')(input_layer)

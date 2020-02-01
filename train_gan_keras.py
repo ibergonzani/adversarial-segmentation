@@ -18,18 +18,15 @@ import os
 from sklearn.metrics import accuracy_score
 
 from phantom_dataset import load_dataset_separated
-from mri_dataset import load_stare_dataset_separated
-from mri_dataset import load_messidor_dataset_binary
-from mias_dataset import load_mias_dataset
-from bhi_dataset import load_bhi_dataset
+# from mri_dataset import load_stare_dataset_separated
+# from mri_dataset import load_messidor_dataset_binary
+# from mias_dataset import load_mias_dataset
+# from bhi_dataset import load_bhi_dataset
 from brain_dataset import load_brain_dataset
 
 
 timestamp = time.time()
 
-DATASET_FOLDER = 'phantom/'
-TRAINING_FOLDER = DATASET_FOLDER + 'train/'
-VALIDATION_FOLDER = DATASET_FOLDER + 'val/'
 
 TRAIN_LOG_FOLDER = 'logs/train_' + str(timestamp)
 TEST_LOG_FOLDER  = 'logs/test_' + str(timestamp)
@@ -141,21 +138,18 @@ def discriminator_accuracy(healthy_output, tumor_output, real_tumor_output):
 def generator_loss_classification(tumor_images_classification):
     return tf.reduce_mean(tf.keras.losses.MSE(tf.ones_like(tumor_images_classification), tumor_images_classification))
 
-def generator_loss_static_classification(tumor_static_classification):
-    return tf.reduce_mean(tf.keras.losses.MSE(tf.ones_like(tumor_static_classification), tumor_static_classification))
 
 def generator_loss_similarity(input_images, generated_images):
-    return tf.reduce_mean(tf.keras.losses.MSE(input_images, generated_images))
+    return tf.reduce_mean(tf.keras.losses.MAE(input_images, generated_images))
 
 
 ########################## TRAINING OPTIMIZATION STEPS ################################
-def train_step(healthy_images, tumor_images, tumor_images_2):
+def train_step(healthy_images, tumor_images, tumor_images_2, generator_step=False):
 
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-        noise_tumor = tf.random.normal(tumor_images.shape, mean=0, stddev=0.001, dtype=tf.dtypes.float64)
-        noise_tumor_2 = tf.random.normal(tumor_images.shape, mean=0, stddev=0.001, dtype=tf.dtypes.float64)
-        noise_healthy = tf.random.normal(healthy_images.shape, mean=0, stddev=0.001, dtype=tf.dtypes.float64)
-        noise_generated = tf.random.normal(tumor_images.shape, mean=0, stddev=0.001, dtype=tf.dtypes.float32)
+        noise_tumor = tf.random.normal(tumor_images.shape, mean=0, stddev=0.003, dtype=tf.dtypes.float64)
+        noise_tumor_2 = tf.random.normal(tumor_images.shape, mean=0, stddev=0.003, dtype=tf.dtypes.float64)
+        noise_healthy = tf.random.normal(healthy_images.shape, mean=0, stddev=0.003, dtype=tf.dtypes.float64)
 
         # adding noise
         healthy_images = healthy_images + noise_healthy
@@ -163,8 +157,7 @@ def train_step(healthy_images, tumor_images, tumor_images_2):
         tumor_images_2 = tumor_images + noise_tumor_2
 
         # generating tumor free (possibly) images
-        generated_images = generator(tumor_images + noise_tumor, training=True)
-        # generated_images = generated_images + noise_generated
+        generated_images = generator(tumor_images, training=True)
 
         # classifies real healty and fake healthy (generated from tumors) images
         h_class = discriminator(healthy_images, training=True)
@@ -174,16 +167,17 @@ def train_step(healthy_images, tumor_images, tumor_images_2):
         # losses
         gen_loss_c = generator_loss_classification(t_class)
         gen_loss_s = generator_loss_similarity(tumor_images, generated_images)
-        gen_loss   = gen_loss_s  + gen_loss_c
+        gen_loss   = 2 * gen_loss_s + gen_loss_c
 
         disc_loss = discriminator_loss(h_class, t_class, real_t_class)
         disc_acc  = discriminator_accuracy(h_class, t_class, real_t_class)
 
-    gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
-    gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
-
-    optimizer_generator.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
-    optimizer_discriminator.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
+    if generator_step:
+        gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
+        optimizer_generator.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
+    else:
+        gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
+        optimizer_discriminator.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
     return gen_loss, disc_loss, disc_acc
 
@@ -201,7 +195,7 @@ def eval_step(healthy_images, tumor_images, tumor_images_2):
 
     gen_loss_c = generator_loss_classification(fake_output)
     gen_loss_s = generator_loss_similarity(tumor_images, generated_images)
-    gen_loss   = gen_loss_s  + gen_loss_c
+    gen_loss   = 2 * gen_loss_s + gen_loss_c
 
     disc_loss = discriminator_loss(real_output, fake_output, tumr_output)
     disc_acc  = discriminator_accuracy(real_output, fake_output, tumr_output)
@@ -219,6 +213,7 @@ for epoch in range(EPOCHS):
 
     print("\nEPOCH %d/%d" % (epoch+1, EPOCHS))
 
+    generator_train_epoch = (epoch % 2) == 1
     # exponential learning rate decay
     # if (epoch + 1) % 10 == 0:
     	# STEPSIZE /= 2.0,
@@ -237,7 +232,7 @@ for epoch in range(EPOCHS):
     for nb, (healthy_images, disease_images, disease_images_2) in enumerate(zip(xh_train_dataset, xu_train_dataset, xu_train_dataset_2)):
         ab = nb + 1
 
-        gen_loss, disc_loss, disc_acc = train_step(healthy_images, disease_images, disease_images_2)
+        gen_loss, disc_loss, disc_acc = train_step(healthy_images, disease_images, disease_images_2, generator_train_epoch)
 
         loss_generator += gen_loss.numpy().item()
         loss_discriminator += disc_loss.numpy().item()
