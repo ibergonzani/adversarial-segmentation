@@ -74,6 +74,7 @@ if __name__ == "__main__":
 
         if image.shape != (512,512):
             continue
+		half = 256
 
         # process image
         image = 255 * (image / image.max())
@@ -115,12 +116,12 @@ if __name__ == "__main__":
         if np.max(borders_y) >= 256:
             lower_has_tumor = True
 
-        upper = image[:256,:]
-        lower = image[256:,:]
+        upper = image[:half,:]
+        lower = image[half:,:]
         lower = lower[::-1,:]
 
-        upper_mask = mask[:256,:]
-        lower_mask = mask[256:,:]
+        upper_mask = mask[:half,:]
+        lower_mask = mask[half:,:]
         lower_mask = lower_mask[::-1,:]
 
         if not os.path.isdir(splitted_tumor_path):

@@ -18,6 +18,8 @@ DATASET_MASK_PATH  = "dataset/brain_mask_dataset"
 DATASET_GEN_IMAGE_PATH = "dataset/brain_gen_tumor_dataset"
 DATASET_GEN_MASK_PATH  = "dataset/brain_gen_mask_dataset"
 
+HEALTHY_DATASET_PATH = "dataset/"
+
 MODEL_ENCODER_PATH = "encoder.h5"
 MODEL_DECODER_PATH = "generator.h5"
 
@@ -66,7 +68,7 @@ def load_categorical_images(folder_path, preprocess=None):
 
             if image is None:
                 continue
-                
+
             if not preprocess is None:
                 image = preprocess(image)
 
@@ -91,6 +93,9 @@ def load_generated_data():
     return images, l, masks, n
 
 
+
+def load_healthy():
+    pass
 
 
 
@@ -215,6 +220,20 @@ def evaluate_generated_images(original_masks, generated_masks, labels):
     return results
 
 
+# def fit_pca_on_healthy_masks(X, num_components=1000):
+#     X = sklearn.datasets.load_iris().data
+#     mu = np.mean(X, axis=0)
+#
+#     pca = sklearn.decomposition.PCA(num_components=num_components)
+#     pca.fit(X)
+#
+#     projection = pca.transform()
+#     reconstruction = pca.inverse_transform(projection)
+#     Xhat += mu
+#
+#     return pca
+#
+# print(Xhat[0,])
 
 
 
