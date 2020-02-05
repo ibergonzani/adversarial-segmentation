@@ -17,6 +17,7 @@ DATASET_IMAGE_PATH = "dataset/brain_tumor_dataset"
 DATASET_MASK_PATH  = "dataset/brain_mask_dataset"
 DATASET_GEN_IMAGE_PATH = "dataset/brain_gen_tumor_dataset"
 DATASET_GEN_MASK_PATH  = "dataset/brain_gen_mask_dataset"
+DATASET_GEN_DIFFS_PATH  = "dataset/brain_gen_diffs_dataset"
 
 HEALTHY_DATASET_PATH = "dataset/"
 
@@ -112,9 +113,10 @@ def save_categorical_images(path, images, labels, names):
 
 
 
-def save_generated_data(names, labels, gen_images, gen_masks):
+def save_generated_data(names, labels, gen_images, gen_masks, diffs):
     save_categorical_images(DATASET_GEN_IMAGE_PATH, gen_images, labels, names)
     save_categorical_images(DATASET_GEN_MASK_PATH, gen_masks, labels, names)
+    save_categorical_images(DATASET_GEN_DIFFS_PATH, diffs, labels, names)
     return
 
 
@@ -145,6 +147,7 @@ def process_images(images, labels, masks):
 
     generated_images = list()
     generated_masks = list()
+    diff = list()
 
     for i, (image, mask, label) in enumerate(zip(images, masks, labels)):
 
@@ -166,14 +169,17 @@ def process_images(images, labels, masks):
         output = (np.concatenate((upper, lower[::-1, ...]), 0) * hrange_val) + mean_val
 
         # generate tumor mask by means of a comparison with the original
-        output_mask = np.max(np.abs(image - output), axis=2, keepdims=True)
+        difference = np.abs(image - output)
+
+        output_mask = np.max(difference, axis=2, keepdims=True)
         output_mask[output_mask >= 30] = 255
         output_mask[output_mask <  30] = 0
 
+        diff.append(difference)
         generated_images.append(output)
         generated_masks.append(output_mask)
 
-    return generated_images, generated_masks
+    return generated_images, generated_masks, diff
 
 
 
@@ -189,6 +195,9 @@ def evaluate_generated_images(original_masks, generated_masks, labels):
         for label in set(labels):
             results[metric.__name__][label] = list()
 
+    results["specificity"] = {}
+    for label in set(labels):
+        results["specificity"][label] = list()
 
     total = len(generated_images)
     for i, (mask, output_mask, label) in enumerate(zip(original_masks, generated_masks, labels)):
@@ -201,13 +210,17 @@ def evaluate_generated_images(original_masks, generated_masks, labels):
             value = metric(mask, output_mask)
             results[metric.__name__][label].append(value)
 
+        spec = recall_score(mask, output_mask, 1)
+        results["specificity"][label].append(spec)
+
+
     # print evaluation results
     print("\n")
-    for metric in metrics:
-        print("\n" + metric.__name__.upper())
+    for metric in results.keys():
+        print("\n" + metric.upper())
 
         all_values = list()
-        for label, class_vals in results[metric.__name__].items():
+        for label, class_vals in results[metric].items():
             all_values += class_vals
             mean_cat = statistics.mean(class_vals)
             var_cat  = statistics.variance(class_vals)
@@ -240,8 +253,8 @@ def evaluate_generated_images(original_masks, generated_masks, labels):
 if __name__ == "__main__":
     images, labels, masks, names = load_dataset()
 
-    generated_images, generated_masks = process_images(images, labels, masks)
-    save_generated_data(names, labels, generated_images, generated_masks)
+    generated_images, generated_masks, diff = process_images(images, labels, masks)
+    save_generated_data(names, labels, generated_images, generated_masks, diff)
 
     results = evaluate_generated_images(masks, generated_masks, labels)
 

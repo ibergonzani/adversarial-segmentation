@@ -92,7 +92,7 @@ def discriminator_net(input_shape):
 
 
 def generator_bipath_net(input_shape):
-	latent_dim = 1024
+	latent_dim = 512
 	output_channels = input_shape[-1]
 
 	# branch  1 ( color reconstruction)
@@ -124,32 +124,43 @@ def generator_bipath_net(input_shape):
 	br2 = BatchNormalization()(br2)
 	br2 = MaxPool2D(pool_size=2, strides=(2, 2))(br2)
 
+	br2 = Conv2D(filters=60, kernel_size=3, strides=(1, 1), padding='same')(br2)
+	br2 = LeakyReLU()(br2)
+	br2 = BatchNormalization()(br2)
+	br2 = MaxPool2D(pool_size=2, strides=(2, 2))(br2)
+
+	br2 = Conv2D(filters=70, kernel_size=3, strides=(1, 1), padding='same')(br2)
+	br2 = LeakyReLU()(br2)
+	br2 = BatchNormalization()(br2)
+	br2 = MaxPool2D(pool_size=2, strides=(2, 2))(br2)
+
 	br2 = Conv2D(filters=80, kernel_size=3, strides=(1, 1), padding='same')(br2)
 	br2 = LeakyReLU()(br2)
 	br2 = BatchNormalization()(br2)
 	br2 = MaxPool2D(pool_size=2, strides=(2, 2))(br2)
 
-	br2 = Conv2D(filters=120, kernel_size=3, strides=(1, 1), padding='same')(br2)
-	br2 = LeakyReLU()(br2)
-	br2 = BatchNormalization()(br2)
-	br2 = MaxPool2D(pool_size=2, strides=(2, 2))(br2)
 
-	# conv_shape = br2.shape[-3:]
-	# conv_units = functools.reduce(operator.mul, conv_shape, 1)
-	#
-	# br2 = Flatten()(br2)
-	# br2 = Dense(conv_units / 2, activation=tf.nn.tanh)(br2)
-	# br2 = Dense(latent_dim, activation=tf.nn.tanh)(br2)
-	#
-	# br2 = Dense(conv_units / 2, activation=tf.nn.tanh)(input_layer)
-	# br2 = Dense(conv_units, activation=tf.nn.tanh)(br2)
-	# br2 = Reshape(conv_shape)(br2)
+	conv_shape = br2.shape[-3:]
+	conv_units = functools.reduce(operator.mul, conv_shape, 1)
 
-	br2 = Conv2DTranspose(filters=120, kernel_size=3, padding='same', strides=(2, 2))(br2)
-	br2 = LeakyReLU()(br2)
-	br2 = BatchNormalization()(br2)
+	br2 = Flatten()(br2)
+	br2 = Dense(2 * latent_dim, activation=tf.nn.tanh)(br2)
+	br2 = Dense(latent_dim, activation=tf.nn.tanh)(br2)
+
+	br2 = Dense(2 * latent_dim, activation=tf.nn.tanh)(br2)
+	br2 = Dense(conv_units, activation=tf.nn.tanh)(br2)
+	br2 = Reshape(conv_shape)(br2)
+
 
 	br2 = Conv2DTranspose(filters=80, kernel_size=3, padding='same', strides=(2, 2))(br2)
+	br2 = LeakyReLU()(br2)
+	br2 = BatchNormalization()(br2)
+
+	br2 = Conv2DTranspose(filters=70, kernel_size=3, padding='same', strides=(2, 2))(br2)
+	br2 = LeakyReLU()(br2)
+	br2 = BatchNormalization()(br2)
+
+	br2 = Conv2DTranspose(filters=60, kernel_size=3, padding='same', strides=(2, 2))(br2)
 	br2 = LeakyReLU()(br2)
 	br2 = BatchNormalization()(br2)
 

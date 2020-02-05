@@ -167,7 +167,7 @@ def train_step(healthy_images, tumor_images, tumor_images_2, generator_step=Fals
         # losses
         gen_loss_c = generator_loss_classification(t_class)
         gen_loss_s = generator_loss_similarity(tumor_images, generated_images)
-        gen_loss   = 2 * gen_loss_s + gen_loss_c
+        gen_loss   = 8 * gen_loss_s + 2 * gen_loss_c
 
         disc_loss = discriminator_loss(h_class, t_class, real_t_class)
         disc_acc  = discriminator_accuracy(h_class, t_class, real_t_class)
@@ -195,7 +195,7 @@ def eval_step(healthy_images, tumor_images, tumor_images_2):
 
     gen_loss_c = generator_loss_classification(fake_output)
     gen_loss_s = generator_loss_similarity(tumor_images, generated_images)
-    gen_loss   = 2 * gen_loss_s + gen_loss_c
+    gen_loss   = 8 * gen_loss_s + 2 * gen_loss_c
 
     disc_loss = discriminator_loss(real_output, fake_output, tumr_output)
     disc_acc  = discriminator_accuracy(real_output, fake_output, tumr_output)
